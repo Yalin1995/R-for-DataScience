@@ -1,0 +1,129 @@
+---
+title: "5.5 Add new variables with `mutate()`"
+author: "Yalin Yang"
+date: "`r Sys.Date()`"
+output:
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+  word_document:
+    toc: no
+    toc_depth: '3'
+---
+
+Besides selecting sets of existing columns, it’s often useful to add new columns that are functions of existing columns. That’s the job of `mutate()`.
+
+
+`mutate()` always adds new columns at the end of your dataset so we’ll start by creating a narrower dataset so we can see the new variables. Remember that when you’re in RStudio, the easiest way to see all the columns is `View()`.
+
+```{r}
+flights_sml <- select(flights, 
+  year:day, 
+  ends_with("delay"), 
+  distance, 
+  air_time
+)
+head(mutate(flights_sml,
+  gain = dep_delay - arr_delay,
+  speed = distance / air_time * 60
+))
+```
+**Note that you can refer to columns that you’ve just created:**
+
+```{r}
+head(mutate(flights_sml,
+  gain = dep_delay - arr_delay,
+  hours = air_time / 60,
+  gain_per_hour = gain / hours
+))
+```
+
+**If you only want to keep the new variables, use `transmute()`:**
+
+```{r}
+head(transmute(flights,
+  gain = dep_delay - arr_delay,
+  hours = air_time / 60,
+  gain_per_hour = gain / hours
+))
+```
+
+## 5.5.1 Useful creation functions
+
+There are many functions for creating new variables that you can use with `mutate()`. 
+
+* Arithmetic operators: `+`, `-`, `*`, `/`, `^`. These are all vectorised, using the so called “recycling rules”. If one parameter is shorter than the other, it will be automatically extended to be the same length. This is most useful when one of the arguments is a single number: `air_time / 60`, `hours * 60 + minute`, etc.
+
+* Modular arithmetic: `%/% `(integer division) and `%%` (remainder), where x == y * (x `%/%` y) + (x `%%` y). Modular arithmetic is a handy tool because it allows you to break integers up into pieces. For example, in the flights dataset, you can compute `hour` and `minute` from `dep_time` with:
+
+```{r}
+head(transmute(flights,
+  dep_time,
+  hour = dep_time %/% 100,
+  minute = dep_time %% 100
+))
+```
+
+* Offsets: `lead()` and `lag()` allow you to refer to leading or lagging values. This allows you to compute running differences (e.g.` x - lag(x)`) or find when values change (`x != lag(x)`). They are most useful in conjunction with `group_by()`, which you’ll learn about shortly.
+
+```{r}
+(x <- 1:10)
+lag(x)
+lead(x)
+```
+
+Ranking: there are a number of ranking functions, but you should start with `min_rank()`. It does the most usual type of ranking (e.g. 1st, 2nd, 2nd, 4th). The default gives smallest values the small ranks; use `desc(x)` to give the largest values the smallest ranks.
+
+```{r}
+y <- c(1, 2, 2, NA, 3, 4)
+min_rank(y)
+min_rank(desc(y))
+```
+
+If `min_rank()` doesn’t do what you need, look at the variants `row_number()`, `dense_rank()`, `percent_rank()`, `cume_dist()`, `ntile()`. See their help pages for more details.
+
+```{r}
+row_number(y)
+dense_rank(y)
+percent_rank(y)
+cume_dist(y)
+```
+
+## Exercises
+
+### Q1
+Currently `dep_time` and `sched_dep_time` are convenient to look at, but hard to compute with because they’re not really continuous numbers. Convert them to a more convenient representation of number of minutes since midnight.
+
+```{r}
+head(mutate(flights,
+            continuous_time = dep_delay + sched_dep_time))
+```
+
+### Q2
+
+Compare `air_time` with `arr_time` - `dep_time.` What do you expect to see? What do you see? What do you need to do to fix it?
+
+```{r}
+flights <- mutate(flights,my_air_time = arr_time - dep_time)
+head(select(flights,my_air_time,air_time))
+```
+
+### Q3
+Find the 10 most delayed flights using a ranking function. How do you want to handle ties? Carefully read the documentation for `min_rank()`.
+
+```{r}
+flights <- mutate(flights,
+                arr_delay_rank = row_number(desc(flights$arr_delay)))
+filter(flights, arr_delay_rank %in% c(1:10))
+```
+
+### Q4
+What does 1:3 + 1:10 return? Why?
+
+```{r}
+1:3 + 1:10
+```
+
+
+
+

@@ -1,0 +1,327 @@
+---
+title: "5.6 Grouped summaries with `summarise()`"
+author: "Yalin Yang"
+date: "`r Sys.Date()`"
+output:
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+  word_document:
+    toc: no
+    toc_depth: '3'
+---
+
+The last key verb is `summarise()`. It collapses a data frame to a single row:
+
+```{r}
+summarise(flights, delay = mean(dep_delay, na.rm = TRUE))
+```
+
+`summarise()` is not terribly useful unless we pair it with `group_by(). `
+
+```{r}
+by_day <- group_by(flights, year, month)
+summarise(by_day, delay = mean(dep_delay, na.rm = TRUE))
+```
+Together `group_by()` and `summarise()` provide one of the tools that you’ll use most commonly when working with dplyr: grouped summaries.
+
+## 5.6.1 Combining multiple operations with the pipe
+
+Imagine that we want to explore the relationship between the distance and average delay for each location. Using what you know about dplyr, you might write code like this:
+
+```{r fig.height=8, fig.width=12, message=FALSE}
+by_dest <- group_by(flights, dest)
+delay <- summarise(by_dest,
+  count = n(),
+  dist = mean(distance, na.rm = TRUE),
+  delay = mean(arr_delay, na.rm = TRUE)
+)
+
+delay <- filter(delay, count > 20, dest != "HNL")
+
+# It looks like delays increase with distance up to ~750 miles 
+# and then decrease. Maybe as flights get longer there's more 
+# ability to make up delays in the air?
+ggplot(data = delay, mapping = aes(x = dist, y = delay)) +
+  geom_point(aes(size = count), alpha = 1/3) +
+  geom_smooth(se = FALSE)
+#> `geom_smooth()` using method = 'loess' and formula 'y ~ x'
+```
+
+There are three steps to prepare this data:
+
+* Group flights by destination.
+
+* Summarise to compute distance, average delay, and number of flights.
+
+* Filter to remove noisy points and Honolulu airport, which is almost twice as far away as the next closest airport.
+
+
+There’s another way to tackle the same problem with the pipe, `%>%`:
+
+```{r message=FALSE}
+head(delays <- flights %>% 
+  group_by(dest) %>% 
+  summarise(
+    count = n(),
+    dist = mean(distance, na.rm = TRUE),
+    delay = mean(arr_delay, na.rm = TRUE)
+  ) %>% 
+  filter(count > 20, dest != "HNL"))
+```
+
+Behind the scenes,` x %>% f(y)` turns into `f(x, y)`, and `x %>% f(y) %>% g(z)` turns into `g(f(x, y), z)` and so on.
+
+## 5.6.2 Missing values
+
+You may have wondered about the `na.rm` argument we used above. What happens if we don’t set it?
+
+```{r message=FALSE}
+flights %>% 
+  group_by(year, month) %>% 
+  summarise(mean = mean(dep_delay))
+```
+
+We get a lot of missing values! That’s because aggregation functions obey the usual rule of missing values: if there’s any missing value in the input, the output will be a missing value. 
+
+```{r message=FALSE}
+flights %>% 
+  group_by(year, month) %>% 
+  summarise(mean = mean(n(), na.rm = TRUE))
+```
+
+In this case, where missing values represent cancelled flights, we could also tackle the problem by first removing the cancelled flights. We’ll save this dataset so we can reuse it in the next few examples.
+
+```{r}
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay))
+
+not_cancelled %>% 
+  group_by(year, month) %>% 
+  summarise(mean = mean(dep_delay))
+```
+
+## 5.6.3 Counts
+
+Whenever you do any aggregation, it’s always a good idea to include either a count (`n()`), or a count of non-missing values (`sum(!is.na(x))`)
+
+```{r message=FALSE}
+delays <- not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(
+    delay = mean(arr_delay)
+  )
+
+ggplot(data = delays, mapping = aes(x = delay)) + 
+  geom_freqpoly(binwidth = 10)
+```
+The story is actually a little more nuanced. **We can get more insight if we draw a scatterplot of number of flights vs. average delay:**
+
+```{r fig.height=6, fig.width=9, message=FALSE}
+delays <- not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(
+    delay = mean(arr_delay, na.rm = TRUE),
+    n = n()
+  )
+
+ggplot(data = delays, mapping = aes(x = n, y = delay)) + 
+  geom_point(alpha = 1/10)
+
+```
+
+When looking at this sort of plot, it’s often useful to filter out the groups with the smallest numbers of observations, so you can see more of the pattern and less of the extreme variation in the smallest groups. This is what the following code does, as well as showing you a handy pattern for integrating ggplot2 into dplyr flows. It’s a bit painful that you have to switch from `%>%` to `+`, but once you get the hang of it, it’s quite convenient.
+
+```{r fig.height=6, fig.width=9}
+delays %>% 
+  filter(n > 25) %>% 
+  ggplot(mapping = aes(x = n, y = delay)) + 
+    geom_point(alpha = 1/10)
+```
+
+There’s another common variation of this type of pattern. Let’s look at how the **average performance of batters in baseball is related to the number of times they’re at bat.** Here I use data from the Lahman package to compute the batting average (number of hits / number of attempts) of every major league baseball player.
+
+```{r fig.height=6, fig.width=9, message=FALSE}
+# Convert to a tibble so it prints nicely
+batting <- as_tibble(Lahman::Batting)
+
+batters <- batting %>% 
+  group_by(playerID) %>% 
+  summarise(
+    ba = sum(H, na.rm = TRUE) / sum(AB, na.rm = TRUE),
+    ab = sum(AB, na.rm = TRUE)
+  )
+
+
+batters %>% 
+  filter(ab > 100) %>% 
+  ggplot(mapping = aes(x = ab, y = ba)) +
+    geom_point() + 
+    geom_smooth(se = FALSE)
+```
+
+
+
+When I plot the skill of the batter (measured by the batting average, ba) against the number of opportunities to hit the ball (measured by at bat, `ab`), you see two patterns:
+
+* As above, the variation in our aggregate decreases as we get more data points.
+
+* There’s a positive correlation between skill (`ba`) and opportunities to hit the ball (`ab`). This is because teams control who gets to play, and obviously they’ll pick their best players.
+
+
+## 5.6.4 Useful summary functions
+
+Just using means, counts, and sum can get you a long way, but R provides many other useful summary functions:
+
+* Measures of location: we’ve used mean(x), but median(x) is also useful. The mean is the sum divided by the length; the median is a value where 50% of x is above it, and 50% is below it.
+
+* It’s sometimes useful to combine aggregation with logical subsetting. We haven’t talked about this sort of subsetting yet, but you’ll learn more about it in subsetting.
+
+```{r message=FALSE}
+not_cancelled %>% 
+  group_by(year, month) %>% 
+  summarise(
+    avg_delay1 = mean(arr_delay),
+    avg_delay2 = mean(arr_delay[arr_delay > 0]) # the average positive delay
+  )
+```
+
+* Measures of spread: `sd(x)`, `IQR(x)`, `mad(x)`. The root mean squared deviation, or standard deviation `sd(x)`, is the standard measure of spread. The interquartile range `IQR(x)` and median absolute deviation `mad(x)` are robust equivalents that may be more useful if you have outliers.
+
+```{r message=FALSE}
+# Why is distance to some destinations more variable than to others?
+not_cancelled %>% 
+  group_by(dest) %>% 
+  summarise(arr_delay_sd = sd(arr_delay, na.rm = TRUE)) %>% 
+  arrange(desc(arr_delay_sd))
+```
+
+* Counts: You’ve seen `n()`, which takes no arguments, and returns the size of the current group. To count the number of non-missing values, use `sum(!is.na(x))`. To count the number of distinct (unique) values, use` n_distinct(x)`.
+
+
+```{r message=FALSE}
+not_cancelled %>% 
+  group_by(carrier) %>% 
+  summarise(dests = n_distinct(dest)) %>% 
+  arrange(desc(dests))
+```
+
+Counts are so useful that dplyr provides a simple helper if all you want is a count:
+
+You can optionally provide a weight variable. For example, you could use this to “count” (sum) the total number of miles a plane flew:
+
+```{r}
+head(not_cancelled %>% 
+  count(tailnum, wt = distance))
+```
+
+* Counts and proportions of logical values: sum(x > 10), mean(y == 0). When used with numeric functions, TRUE is converted to 1 and FALSE to 0. This makes sum() and mean() very useful: sum(x) gives the number of TRUEs in x, and mean(x) gives the proportion.
+
+```{r message=FALSE}
+# What proportion of flights are delayed by more than an hour?
+not_cancelled %>% 
+  group_by(year, month) %>% 
+  summarise(hour_prop = mean(arr_delay > 60))
+```
+
+## 5.6.5 Grouping by multiple variables
+
+When you group by multiple variables, each summary peels off one level of the grouping. That makes it easy to progressively roll up a dataset:
+
+```{r message=FALSE}
+daily <- group_by(flights, year, month, day)
+head(per_day   <- summarise(daily, flights = n()))
+(per_month <- summarise(per_day, flights = sum(flights)))
+(per_year  <- summarise(per_month, flights = sum(flights)))
+```
+
+## 5.6.6 Ungrouping
+
+If you need to remove grouping, and return to operations on ungrouped data, use `ungroup()`.
+
+```{r}
+daily %>% 
+  ungroup() %>%             # no longer grouped by date
+  summarise(flights = n())  # all flights
+```
+
+## 5.6.7 Exercises
+
+### Q1 Brainstorm at least 5 different ways to assess the typical delay characteristics of a group of flights. Consider the following scenarios:
+
+* A flight is 15 minutes early 50% of the time, and 15 minutes late 50% of the time.
+
+```{r message=FALSE}
+flights %>%
+  group_by(tailnum) %>%
+  summarise( early_15 = mean(arr_delay <= -15),
+             late_15 = mean(arr_delay >= 15)) %>%
+  filter(early_15 >=0.5,late_15>=0.5)
+```
+
+* A flight is always 10 minutes late.
+
+```{r message=FALSE}
+head(flights %>%
+  group_by(tailnum) %>%
+  summarise( late = mean(arr_delay < 0))%>%
+  filter(late == 1))
+```
+
+* 99% of the time a flight is on time. 1% of the time it’s 2 hours late.
+
+```{r message=FALSE}
+head(flights %>%
+  group_by(tailnum) %>%
+  summarise( ontime = mean(arr_delay <= 0),
+             late_2hour = mean(arr_delay >= 120)) %>%
+  filter(ontime >=0.99,late_2hour<=0.01))
+```
+
+### Q2
+
+Come up with another approach that will give you the same output as` not_cancelled %>% count(dest)` and `not_cancelled %>% count(tailnum, wt = distance)` (without using `count()`).
+
+```{r}
+head(not_cancelled %>% count(dest))
+```
+
+```{r message=FALSE}
+head(not_cancelled %>% 
+       group_by(dest) %>%
+       summarise(n = n()))
+```
+```{r}
+head(not_cancelled %>% count(tailnum, wt = distance))
+```
+```{r message=FALSE}
+head(not_cancelled %>% 
+       group_by(tailnum) %>%
+      summarise(wt_n = n() * mean(distance)))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

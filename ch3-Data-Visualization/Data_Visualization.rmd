@@ -1,0 +1,309 @@
+---
+title: "Chapter 3. Data visualisation"
+author: "Yalin Yang"
+date: "`r Sys.Date()`"
+output:
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+  word_document:
+    toc: no
+    toc_depth: '3'
+---
+
+# 3.1 Introduction
+
+his chapter will teach you how to visualise your data using `ggplot2`. ggplot2 implements the grammar of graphics, a coherent system for describing and building graphs. With ggplot2, you can do more faster by learning one system and applying it in many places.
+
+## 3.1.1 Prerequisites
+
+This chapter focusses on ggplot2, one of the core members of the tidyverse. To access the datasets, help pages, and functions that we will use in this chapter, load the tidyverse by running this code:
+
+```{r message=FALSE, warning=FALSE}
+if(!require(tidyverse))
+{
+  install.packages("tidyverse")
+}
+library(tidyverse)
+```
+
+# 3.2 First Steps
+
+## 3.2.1 The `mpg` data frame
+
+You can test your answer with the `mpg` **data frame** found in ggplot2 (`aka ggplot2::mpg`). A data frame is a rectangular collection of variables (in the columns) and observations (in the rows). `mpg` contains observations collected by the US Environmental Protection Agency on 38 models of car.
+
+Among the variables in `mpg` are:
+
+* `displ`, a car’s engine size, in litres.
+
+* `hwy`, a car’s fuel efficiency on the highway, in miles per gallon (mpg). A car with a low fuel efficiency consumes more fuel than a car with a high fuel efficiency when they travel the same distance.
+```{r}
+head(mpg,10)
+```
+
+## 3.2.2 Creating a ggplot
+
+To plot `mpg`, run this code to put `displ` on the x-axis and `hwy` on the y-axis:
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ,y=hwy))
+```
+
+## 3.2.3 A graphing template
+
+`ggplot(data = <DATA>) +` 
+  `<GEOM_FUNCTION>(mapping = aes(<MAPPINGS>))`
+  
+## 3.2.4 Exercises
+
+### Q1
+
+Run `ggplot(data = mpg).` What do you see?
+
+```{r}
+ggplot(data = mpg)
+```
+
+### Q2
+How many rows are in mpg? How many columns?
+```{r}
+print(nrow(mpg))
+print(ncol(mpg))
+```
+
+### Q3
+What does the `drv` variable describe? 
+
+Read the help for `?mpg` to find out.
+
+### Q4
+Make a scatterplot of `hwy` vs `cyl`.
+
+```{r}
+ggplot(data = mpg) +
+  geom_point(mapping =  aes(x = hwy, y = cyl))
+```
+
+### Q5
+What happens if you make a scatterplot of class vs drv? Why is the plot not useful?
+```{r}
+class(mpg$class)
+```
+
+# 3.3 Aesthetic mappings
+
+In the plot below, one group of points (highlighted in red) seems to fall outside of the linear trend. These cars have a higher mileage than you might expect. How can you explain these cars?
+
+![img](https://d33wubrfki0l68.cloudfront.net/75fb0e8e533675ad76f647b02be462f7cfd2f1df/b7679/visualize_files/figure-html/unnamed-chunk-5-1.png)
+
+**You can add a third variable, like `class`, to a two dimensional scatterplot by mapping it to an aesthetic.** An aesthetic is a visual property of the objects in your plot. Aesthetics include things like the size, the shape, or the color of your points. You can display a point (like the one below) in different ways by changing the values of its aesthetic properties. Since we already use the word “value” to describe data, let’s use the word “level” to describe aesthetic properties. Here we change the levels of a point’s size, shape, and color to make the point small, triangular, or blue:
+
+![img2](https://d33wubrfki0l68.cloudfront.net/2f8f27c472d7df78486e248c40931019b286361b/32a65/visualize_files/figure-html/unnamed-chunk-6-1.png)
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = class))
+```
+
+In the above example, we mapped `class` to the color aesthetic, but we could have mapped class to the size aesthetic in the same way. In this case, the exact size of each point would reveal its class affiliation. We get a warning here, because mapping an unordered variable (class) to an ordered `aesthetic (size)` is not a good idea.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, size = class))
+```
+
+Or we could have mapped class to the alpha aesthetic, which controls the transparency of the points, or to the shape aesthetic, which controls the shape of the points.
+* The name of a color as a character string.
+* The size of a point in mm.
+* The shape of a point as a number, as shown in Figure 3.1.
+![img3](https://d33wubrfki0l68.cloudfront.net/58a48d625b4bd494cd685dd9998f5c74e9c16907/211c6/visualize_files/figure-html/shapes-1.png)
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, alpha = class))
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, shape = class))
+```
+
+## 3.3.1 Exercises
+
+### Q1
+What’s gone wrong with this code? Why are the points not blue?
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = "blue"))
+```
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy),color = "blue")
+```
+
+### Q2
+Which variables in `mpg` are categorical? Which variables are continuous? (Hint: type `?mpg` to read the documentation for the dataset). How can you see this information when you run `mpg`?
+
+```{r}
+summary(mpg)
+```
+
+### Q3
+Map a continuous variable to `color`, `size`, and `shape`. How do these aesthetics behave differently for categorical vs. continuous variables?
+```{r fig.height=6, fig.width=8}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = class))
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = year))
+```
+
+
+### Q4
+What happens if you map the same variable to multiple aesthetics?
+```{r fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = class,shape = class, size = class))
+```
+
+### Q5
+What does the `stroke` aesthetic do? What shapes does it work with? (Hint: use ?geom_point)
+```{r}
+vignette("ggplot2-specs")
+```
+
+### Q6
+
+What happens if you map an aesthetic to something other than a variable name, like `aes(colour = displ < 5)`? Note, you’ll also need to specify x and y.
+```{r fig.height=8, fig.width=10}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = year < 2006))
+```
+
+# 3.4 Common Problems
+
+Start by carefully comparing the code that you’re running to the code in the book. R is extremely picky, and a misplaced character can make all the difference. Make sure that every ( is matched with a ) and every` " `is paired with another` "`. Sometimes you’ll run the code and nothing happens. Check the left-hand of your console: if it’s a` + `, it means that R doesn’t think you’ve typed a complete expression and it’s waiting for you to finish it. In this case, it’s usually easy to start from scratch again by pressing ESCAPE to abort processing the current command.
+
+# 3.5 Facets
+
+One way to add additional variables is with aesthetics. **Another way, particularly useful for categorical variables, is to split your plot into facets, subplots that each display one subset of the data.**
+
+To facet your plot **by a single variable**, use `facet_wrap()`. The first argument of `facet_wrap()` should be a formula, which you create with `~`
+
+```{r fig.height=8, fig.width=12, message=FALSE, warning=FALSE}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_wrap(~ class, nrow = 2)
+```
+
+To facet your plot on the **combination of two variables**, add `facet_grid`() to your plot call. The first argument of `facet_grid()` is also a formula. This time the formula should contain two variable names separated by a `~`.
+
+If you prefer to not facet in the rows or columns dimension, use a `.` instead of a variable name, e.g. `+ facet_grid(. ~ cyl)`.
+
+```{r fig.height=8, fig.width=12}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_grid(drv ~ cyl)
+
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_grid(. ~ cyl)
+```
+
+## 3.5.1 Exercises
+
+### Q1
+What happens if you facet on a continuous variable?
+```{r fig.height=8, fig.width=12}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_wrap(~ year, nrow = 2)
+```
+
+### Q2
+What do the empty cells in plot with `facet_grid(drv ~ cyl)` mean? How do they relate to this plot?
+
+This graph shows how many combination of those two data.
+```{r fig.height=6, fig.width=8}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = drv, y = cyl))
+```
+
+### Q3
+
+What plots does the following code make? What does `.` do?
+
+first arg represent row, second represent column
+
+```{r fig.height=6, fig.width=8}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ .)
+```
+
+```{r fig.height=6, fig.width=8}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(. ~ cyl)
+```
+
+### Q4
+
+Take the first faceted plot in this section:
+
+What are the advantages to using faceting instead of the colour aesthetic? What are the disadvantages? How might the balance change if you had a larger dataset?
+
+```{r fig.height=8, fig.width=10}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_wrap(~ class, nrow = 2)
+```
+
+# 3.6 Geometric objects
+
+```{r fig.height=6, fig.width=8, message=FALSE, warning=FALSE}
+# left
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+
+# right
+ggplot(data = mpg) + 
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+```
+
+`geom_smooth()` **will draw a different line, with a different linetype**, for each unique value of the variable that you map to linetype.
+
+```{r fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
+ggplot(data = mpg) + 
+  geom_smooth(mapping = aes(x = displ, y = hwy, linetype = drv))
+```
+
+ggplot2 provides over 40 geoms, and extension packages provide even more (see https://exts.ggplot2.tidyverse.org/gallery/ for a sampling).
+
+```{r fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+```{r fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(color = class)) + 
+  geom_smooth()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
